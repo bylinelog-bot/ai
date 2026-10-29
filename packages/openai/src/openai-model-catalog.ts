@@ -20,6 +20,7 @@ export type OpenAILanguageModelEntry = {
       endpoints: {
         chat: {
           temperatureWithoutReasoning: boolean;
+          functionToolsWithReasoning: boolean;
         };
         responses: {
           logprobsRequireNonReasoning: boolean;
@@ -133,6 +134,14 @@ function createOpenAILanguageModelEntry(
     (gptVersion?.variant?.startsWith('chat') ?? false);
   const isGptNanoModel = gptVersion?.variant?.startsWith('nano') ?? false;
   const isGpt6OrLaterModel = gptVersion != null && gptVersion.major >= 6;
+  // Pro, codex, and chat variants are excluded because their supported
+  // efforts are not known.
+  const isStandardGpt5Model =
+    gptVersion?.major === 5 &&
+    (gptVersion.variant == null ||
+      /^(?:(?:mini|nano|sol|luna|terra)(?:-\d{4}-\d{2}-\d{2})?|\d{4}-\d{2}-\d{2})$/.test(
+        gptVersion.variant,
+      ));
   const supportsFlexProcessing =
     (oSeriesVersion != null && oSeriesVersion >= 3) ||
     (gptVersion != null && gptVersion.major >= 5 && !isGptChatModel);
@@ -187,7 +196,9 @@ function createOpenAILanguageModelEntry(
             definition?.capabilities?.language?.reasoning?.efforts ??
             (isGpt6OrLaterModel
               ? ['low', 'medium', 'high', 'xhigh', 'max']
-              : undefined),
+              : isStandardGpt5Model
+                ? getGpt5ReasoningEfforts(gptVersion.minor ?? 0)
+                : undefined),
           sampling: reasoningSampling,
         },
         sampling: {
@@ -218,6 +229,10 @@ function createOpenAILanguageModelEntry(
           chat: {
             temperatureWithoutReasoning:
               chatTemperatureSupportedWithoutReasoning,
+            // GPT-5.6 rejects function tools with reasoning in Chat Completions.
+            functionToolsWithReasoning: !(
+              gptVersion?.major === 5 && (gptVersion.minor ?? 0) >= 6
+            ),
           },
           responses: {
             logprobsRequireNonReasoning: isGpt6OrLaterModel,
@@ -233,6 +248,22 @@ function createOpenAILanguageModelEntry(
       },
     },
   };
+}
+
+function getGpt5ReasoningEfforts(minor: number): readonly string[] {
+  if (minor === 0) {
+    return ['minimal', 'low', 'medium', 'high'];
+  }
+
+  if (minor === 1) {
+    return ['none', 'low', 'medium', 'high'];
+  }
+
+  if (minor < 6) {
+    return ['none', 'low', 'medium', 'high', 'xhigh'];
+  }
+
+  return ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
 }
 
 function getOSeriesVersion(modelId: string): number | undefined {
@@ -757,6 +788,7 @@ export type OpenAILanguageModelCapabilities = {
   supportsConfigurationUpdate: boolean;
   supportsAsyncToolCalling: boolean;
   supportedReasoningEfforts: readonly string[] | undefined;
+  supportsChatFunctionToolsWithReasoning: boolean;
   supportsNonReasoningParameters: boolean;
 };
 
@@ -777,6 +809,8 @@ export function getOpenAILanguageModelCapabilities(
     supportsConfigurationUpdate: capabilities.configurationUpdates,
     supportsAsyncToolCalling: capabilities.tools.async,
     supportedReasoningEfforts: capabilities.reasoning.efforts,
+    supportsChatFunctionToolsWithReasoning:
+      capabilities.endpoints.chat.functionToolsWithReasoning,
     supportsNonReasoningParameters:
       capabilities.reasoning.sampling === 'reasoning-effort-none',
   };
