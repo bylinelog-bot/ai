@@ -25,14 +25,12 @@ import {
   type ParseResult,
 } from '@ai-sdk/provider-utils';
 import { openaiFailedResponseHandler } from '../openai-error';
-import {
-  getOpenAILanguageModelEntry,
-  resolveOpenAIReasoningEffort,
-} from '../openai-model-catalog';
+import { getOpenAILanguageModelEntry } from '../openai-model-catalog';
 import {
   createOpenAIProviderStreamError,
   throwIfOpenAIStreamErrorBeforeOutput,
 } from '../openai-stream-error';
+import { resolveOpenAIReasoningEffort } from '../resolve-openai-reasoning-effort';
 import {
   convertOpenAIChatUsage,
   type OpenAIChatUsage,
